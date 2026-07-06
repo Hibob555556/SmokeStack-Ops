@@ -1,0 +1,42 @@
+@"
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest/cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build/dist output
+build/
+dist/
+*.egg-info/
+
+# Docker/local override files
+docker-compose.override.yml
+"@ | Out-File -Encoding utf8 .gitignore
