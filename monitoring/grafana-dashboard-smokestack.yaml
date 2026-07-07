@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-smokestack
+  namespace: smokestack
+data:
+  smokestack-dashboard.json: |
+    {
+      "uid": "smokestack-ops",
+      "title": "SmokeStack Ops",
+      "tags": ["smokestack", "devops", "fastapi", "kubernetes"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Active Grills",
+          "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "smokestack_active_grills",
+              "legendFormat": "active grills",
+              "refId": "A"
+            }
+          ],
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          }
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "API Requests by Endpoint",
+          "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+          "targets": [
+            {
+              "expr": "smokestack_api_requests_total",
+              "legendFormat": "{{endpoint}}",
+              "refId": "A"
+            }
+          ],
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          }
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "Grill Temperature",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "smokestack_grill_temperature_fahrenheit",
+              "legendFormat": "{{grill_id}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "fahrenheit"
+            }
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          }
+        },
+        {
+          "id": 4,
+          "type": "timeseries",
+          "title": "Pellet Level",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "smokestack_pellet_level_percent",
+              "legendFormat": "{{grill_id}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent"
+            }
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          }
+        }
+      ]
+    }
