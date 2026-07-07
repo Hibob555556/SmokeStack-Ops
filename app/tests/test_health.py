@@ -108,3 +108,4 @@ def test_health_endpoint_includes_request_id_header():
     # Assert: Verify that the response includes a non-empty request ID for log correlation
     assert request_id_header in response.headers
     assert len(response.headers[request_id_header]) > 0
+    
