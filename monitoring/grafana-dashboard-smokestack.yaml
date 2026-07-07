@@ -21,7 +21,7 @@ data:
           "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
           "targets": [
             {
-              "expr": "smokestack_active_grills",
+              "expr": "max(smokestack_active_grills)",
               "legendFormat": "active grills",
               "refId": "A"
             }
@@ -38,7 +38,7 @@ data:
           "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
           "targets": [
             {
-              "expr": "smokestack_api_requests_total",
+              "expr": "sum by (endpoint) (smokestack_api_requests_total)",
               "legendFormat": "{{endpoint}}",
               "refId": "A"
             }
@@ -55,7 +55,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
           "targets": [
             {
-              "expr": "smokestack_grill_temperature_fahrenheit",
+              "expr": "max by (grill_id) (smokestack_grill_temperature_fahrenheit)",
               "legendFormat": "{{grill_id}}",
               "refId": "A"
             }
@@ -77,7 +77,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
           "targets": [
             {
-              "expr": "smokestack_pellet_level_percent",
+              "expr": "avg by (grill_id) (smokestack_pellet_level_percent)",
               "legendFormat": "{{grill_id}}",
               "refId": "A"
             }

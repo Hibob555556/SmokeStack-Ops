@@ -11,6 +11,20 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_late
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("smokestack")
 
+INCIDENT_GRILL_ID = "grill-incident-demo"
+CRITICAL_SPIKE_TEMP = 625
+INCIDENT_IDLE_TEMP = 225
+INCIDENT_DURATION_SECONDS = 60
+RANDOM_INCIDENT_MIN_DELAY_SECONDS = 180
+RANDOM_INCIDENT_MAX_DELAY_SECONDS = 420
+
+incident_active_until = 0
+incident_source = None
+next_random_incident_at = time.time() + random.randint(
+    RANDOM_INCIDENT_MIN_DELAY_SECONDS,
+    RANDOM_INCIDENT_MAX_DELAY_SECONDS,
+)
+
 app = FastAPI(
     title="SmokeStack Ops",
     description="A DevOps portfolio service that simulates smart grill telemetry.",
@@ -39,6 +53,66 @@ PELLET_LEVEL = Gauge(
     "Current pellet level percentage",
     ["grill_id"],
 )
+
+
+def schedule_next_random_incident(now=None):
+    """
+    Description: Schedules the next random demo incident.
+    Returns:
+        int: Unix timestamp when the next random incident should start.
+    """
+    global next_random_incident_at
+
+    current_time = now if now is not None else time.time()
+    next_random_incident_at = current_time + random.randint(
+        RANDOM_INCIDENT_MIN_DELAY_SECONDS,
+        RANDOM_INCIDENT_MAX_DELAY_SECONDS,
+    )
+
+    return int(next_random_incident_at)
+
+
+def start_temperature_incident(source, now=None):
+    """
+    Description: Starts a temporary critical temperature incident.
+    Returns:
+        int: Unix timestamp when the incident expires.
+    """
+    global incident_active_until, incident_source
+
+    current_time = now if now is not None else time.time()
+    incident_active_until = current_time + INCIDENT_DURATION_SECONDS
+    incident_source = source
+    GRILL_TEMP.labels(grill_id=INCIDENT_GRILL_ID).set(CRITICAL_SPIKE_TEMP)
+
+    return int(incident_active_until)
+
+
+def update_temperature_incident(now=None):
+    """
+    Description: Updates the incident metric and starts random scheduled incidents.
+    Returns:
+        bool: True when an incident is currently active.
+    """
+    global incident_active_until, incident_source
+
+    current_time = now if now is not None else time.time()
+
+    if incident_active_until > current_time:
+        GRILL_TEMP.labels(grill_id=INCIDENT_GRILL_ID).set(CRITICAL_SPIKE_TEMP)
+        return True
+
+    if incident_source is not None:
+        incident_active_until = 0
+        incident_source = None
+        schedule_next_random_incident(current_time)
+
+    if current_time >= next_random_incident_at:
+        start_temperature_incident(source="scheduled", now=current_time)
+        return True
+
+    GRILL_TEMP.labels(grill_id=INCIDENT_GRILL_ID).set(INCIDENT_IDLE_TEMP)
+    return False
 
 
 @app.middleware("http")
@@ -155,6 +229,7 @@ def generate_grill_data():
 
     # Set the number of active grills in Prometheus metrics
     ACTIVE_GRILLS.set(len(grills))
+    update_temperature_incident()
 
     return grills
 
@@ -220,18 +295,16 @@ def simulate_temperature_spike():
     
     REQUEST_COUNT.labels(endpoint="/simulate/spike").inc()
 
-    # Simulate a temperature spike for a specific grill to between 500 to 650 degrees Fahrenheit
-    grill_id = "grill-incident-demo"
-    spike_temp = random.randint(500, 650)
-
-    # Set the Prometheus metric for the grill's temperature to the simulated spike temperature
-    GRILL_TEMP.labels(grill_id=grill_id).set(spike_temp)
+    expires_at = start_temperature_incident(source="manual")
 
     return {
         "event": "temperature_spike",
-        "grill_id": grill_id,
-        "current_temp": spike_temp,
-        "severity": "warning" if spike_temp < 600 else "critical",
+        "grill_id": INCIDENT_GRILL_ID,
+        "current_temp": CRITICAL_SPIKE_TEMP,
+        "severity": "critical",
+        "alert_threshold": 600,
+        "duration_seconds": INCIDENT_DURATION_SECONDS,
+        "expires_at": expires_at,
     }
 
 

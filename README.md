@@ -111,6 +111,12 @@ Example metric:
 
     smokestack_grill_temperature_fahrenheit{grill_id="grill-1"} 349.0
 
+The spike endpoint sets a deterministic critical demo reading for 60 seconds:
+
+    smokestack_grill_temperature_fahrenheit{grill_id="grill-incident-demo"} 625.0
+
+After the one-minute incident window, the demo incident grill returns to a safe idle temperature. Prometheus scrapes can also start random scheduled one-minute demo incidents every 3-7 minutes per API pod.
+
 ## Structured Logging
 
 Each request is logged as structured JSON.
@@ -290,6 +296,7 @@ Apply the remaining manifests:
     kubectl apply -f k8s/configmap.yaml
     kubectl apply -f k8s/deployment.yaml
     kubectl apply -f k8s/service.yaml
+    kubectl apply -f k8s/metrics-service.yaml
 
 ### Verify Kubernetes resources
 
@@ -300,6 +307,7 @@ Expected resources include:
     pod/smokestack-api-...
     pod/smokestack-api-...
     service/smokestack-api-service
+    service/smokestack-api-metrics
     deployment.apps/smokestack-api
     replicaset.apps/smokestack-api-...
 
@@ -322,6 +330,7 @@ The Kubernetes deployment includes:
 * `ConfigMap` for environment configuration
 * `Deployment` with two replicas
 * `Service` for internal cluster routing
+* Headless metrics `Service` for per-pod Prometheus discovery
 * Liveness probe using `/health`
 * Readiness probe using `/ready`
 * CPU and memory requests
@@ -329,13 +338,16 @@ The Kubernetes deployment includes:
 
 ## Prometheus Monitoring
 
-Prometheus is deployed in the `smokestack` namespace and scrapes the API through the Kubernetes Service DNS name:
+Prometheus is deployed in the `smokestack` namespace and scrapes each API pod through the headless metrics Service DNS name:
 
-    smokestack-api-service.smokestack.svc.cluster.local:80
+    smokestack-api-metrics.smokestack.svc.cluster.local:8000
 
 Apply Prometheus manifests:
 
+    kubectl apply -f k8s/namespace.yaml
+    kubectl apply -f k8s/metrics-service.yaml
     kubectl apply -f monitoring/prometheus-config.yaml
+    kubectl apply -f k8s/prometheus/alert-rules.yaml
     kubectl apply -f monitoring/prometheus-deployment.yaml
     kubectl apply -f monitoring/prometheus-service.yaml
 
@@ -353,6 +365,12 @@ Useful Prometheus queries:
     smokestack_active_grills
     smokestack_grill_temperature_fahrenheit
     smokestack_pellet_level_percent
+
+Trigger a demo alertable spike:
+
+    curl.exe -X POST http://localhost:8000/simulate/spike
+
+The `HighGrillTemperature` alert fires when Prometheus scrapes `smokestack_grill_temperature_fahrenheit > 600` for 30 seconds. The manual spike remains active for 60 seconds, then drops back below the alert threshold. The API also schedules random one-minute demo incidents every 3-7 minutes per API pod during Prometheus scrapes.
 
 ## Grafana Dashboard
 

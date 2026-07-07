@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smokestack-api-metrics
+  namespace: smokestack
+  labels:
+    app: smokestack-api
+    component: metrics
+spec:
+  clusterIP: None
+  selector:
+    app: smokestack-api
+  ports:
+    - name: metrics
+      protocol: TCP
+      port: 8000
+      targetPort: 8000

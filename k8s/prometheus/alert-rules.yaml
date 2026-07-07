@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smokestack-alert-rules
+  namespace: smokestack
+  labels:
+    app: prometheus
+    component: alert-rules
+data:
+  smokestack-alerts.yml: |
+    groups:
+      - name: smokestack-grill-alerts
+        rules:
+          - alert: HighGrillTemperature
+            expr: smokestack_grill_temperature_fahrenheit > 600
+            for: 30s
+            labels:
+              severity: critical
+              service: smokestack-api
+              team: devops
+            annotations:
+              summary: "High grill temperature detected"
+              description: "Grill {{ $labels.grill_id }} is reporting {{ $value }}F, which is above the 600F safety threshold."
+              runbook_url: "docs/high-temperature-incident-runbook.md"

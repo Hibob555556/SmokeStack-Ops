@@ -1,6 +1,3 @@
-New-Item -ItemType Directory -Force -Path docs | Out-Null
-
-@'
 # SmokeStack Ops Kubernetes Runbook
 
 ## Purpose
@@ -14,6 +11,7 @@ SmokeStack Ops runs as a containerized FastAPI service with:
 - Deployment
 - Two API replicas
 - ClusterIP Service
+- Headless metrics Service for Prometheus pod scraping
 - Liveness probe
 - Readiness probe
 - CPU and memory requests/limits
@@ -65,6 +63,7 @@ Then apply the remaining manifests:
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/metrics-service.yaml
 ```
 
 Or apply the full folder after the namespace exists:
@@ -90,6 +89,7 @@ pod/smokestack-api-...   1/1   Running
 pod/smokestack-api-...   1/1   Running
 
 service/smokestack-api-service   ClusterIP   ...   80/TCP
+service/smokestack-api-metrics   ClusterIP   None  8000/TCP
 
 deployment.apps/smokestack-api   2/2   2   2
 ```
@@ -249,6 +249,7 @@ Then apply the other manifests:
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/metrics-service.yaml
 ```
 
 ---
@@ -265,6 +266,7 @@ If the service is missing:
 
 ```powershell
 kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/metrics-service.yaml
 ```
 
 ---
@@ -349,7 +351,10 @@ The `/health` endpoint is used by the liveness probe to determine whether the co
 
 The `/ready` endpoint is used by the readiness probe to determine whether the pod is ready to receive traffic.
 
-The `/metrics` endpoint exposes Prometheus-compatible metrics for future observability work.
+The `/metrics` endpoint exposes Prometheus-compatible metrics. Prometheus scrapes API pods through `smokestack-api-metrics`, a headless Service that resolves to each ready API pod.
+
+`POST /simulate/spike` starts a one-minute demo high-temperature incident for `grill-incident-demo`. The incident reports `625F`, which is above the `HighGrillTemperature` alert threshold, then returns to `225F` after the incident window expires.
+
+During `/metrics` scrapes, each API pod can also start a random scheduled one-minute demo incident every 3-7 minutes.
 
 The `X-Request-ID` response header supports request tracing and log correlation during troubleshooting.
-'@ | Set-Content -Encoding UTF8 docs/kubernetes-runbook.md

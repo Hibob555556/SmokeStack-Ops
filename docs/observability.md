@@ -7,7 +7,7 @@ This document explains how SmokeStack Ops exposes, collects, and visualizes appl
 The goal of this observability setup is to demonstrate production-style monitoring practices for a containerized API, including:
 
 - Application metrics
-- Kubernetes service discovery through internal DNS
+- Kubernetes pod discovery through headless Service DNS
 - Prometheus scraping
 - Grafana visualization
 - Request-level troubleshooting support through structured logs and request IDs
@@ -107,11 +107,13 @@ This metric demonstrates operational monitoring for device state and potential a
 
 Prometheus is deployed into the `smokestack` Kubernetes namespace.
 
-It scrapes the SmokeStack API through the Kubernetes Service DNS name:
+It scrapes each SmokeStack API pod through the headless metrics Service DNS name:
 
 ```text
-smokestack-api-service.smokestack.svc.cluster.local:80
+smokestack-api-metrics.smokestack.svc.cluster.local:8000
 ```
+
+The headless Service resolves to the individual API pod IPs, so a temperature spike recorded in one replica can be scraped by Prometheus as its own target.
 
 The Prometheus scrape configuration targets:
 
@@ -128,6 +130,9 @@ at a regular interval.
 From the project root:
 
 ```powershell
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/metrics-service.yaml
+kubectl apply -f k8s/prometheus/alert-rules.yaml
 kubectl apply -f monitoring/prometheus-config.yaml
 kubectl apply -f monitoring/prometheus-deployment.yaml
 kubectl apply -f monitoring/prometheus-service.yaml
@@ -165,7 +170,7 @@ Status → Targets
 Expected target:
 
 ```text
-smokestack-api
+smokestack-api-pods
 ```
 
 Expected status:
@@ -174,11 +179,13 @@ Expected status:
 UP
 ```
 
+With multiple API replicas, Prometheus should show one active target per ready API pod.
+
 If the target is down, check:
 
 ```powershell
 kubectl get svc -n smokestack
-kubectl get endpoints smokestack-api-service -n smokestack
+kubectl get endpoints smokestack-api-metrics -n smokestack
 kubectl logs deployment/prometheus -n smokestack
 ```
 
@@ -186,7 +193,7 @@ kubectl logs deployment/prometheus -n smokestack
 
 ## Useful Prometheus Queries
 
-Use these queries in Prometheus or Grafana.
+Use these raw queries in Prometheus when troubleshooting individual pod targets.
 
 ### API Requests by Endpoint
 
@@ -210,6 +217,48 @@ smokestack_grill_temperature_fahrenheit
 
 ```promql
 smokestack_pellet_level_percent
+```
+
+### High Temperature Alert State
+
+```promql
+ALERTS{alertname="HighGrillTemperature"}
+```
+
+### Demo Incident Temperature
+
+```promql
+smokestack_grill_temperature_fahrenheit{grill_id="grill-incident-demo"}
+```
+
+---
+
+## Grafana Dashboard Queries
+
+Because Prometheus scrapes each API pod separately, the Grafana dashboard aggregates pod-level series into one logical application view.
+
+### Active Grills
+
+```promql
+max(smokestack_active_grills)
+```
+
+### API Requests by Endpoint
+
+```promql
+sum by (endpoint) (smokestack_api_requests_total)
+```
+
+### Grill Temperatures
+
+```promql
+max by (grill_id) (smokestack_grill_temperature_fahrenheit)
+```
+
+### Pellet Levels
+
+```promql
+avg by (grill_id) (smokestack_pellet_level_percent)
 ```
 
 ---
@@ -312,6 +361,8 @@ This confirms the application is generating telemetry for five simulated grills.
 
 The API request graph shows request counts grouped by endpoint.
 
+The dashboard sums request counters across API pod instances so each endpoint appears once.
+
 Expected behavior:
 
 - `/ready` increases regularly because Kubernetes readiness probes call it.
@@ -329,13 +380,15 @@ The Grill Temperature panel shows simulated temperatures for each grill.
 
 Because this is generated test data, the values fluctuate between requests.
 
-This panel demonstrates how device telemetry can be monitored over time.
+This panel uses the maximum value per `grill_id` across API pod instances so the `grill-incident-demo` spike remains visible even when only one pod reports the incident.
 
 ---
 
 ### Pellet Level
 
 The Pellet Level panel shows simulated pellet percentage by grill.
+
+The dashboard averages pellet level by `grill_id` across API pod instances to avoid duplicate pod-level series in the panel legend.
 
 This could later support alerting for low pellet levels.
 
@@ -414,6 +467,14 @@ To generate repeated traffic:
 1..20 | ForEach-Object { curl.exe http://localhost:8000/grills }
 ```
 
+To generate a deterministic one-minute high-temperature incident:
+
+```powershell
+curl.exe -X POST http://localhost:8000/simulate/spike
+```
+
+The response reports `grill-incident-demo` at `625F`, which is above the `HighGrillTemperature` alert threshold of `600F`. The incident remains active for 60 seconds, then returns to a safe idle temperature. Prometheus scrapes can also trigger random scheduled one-minute demo incidents every 3-7 minutes per API pod.
+
 ---
 
 ## Troubleshooting
@@ -424,7 +485,8 @@ Check the SmokeStack API Service:
 
 ```powershell
 kubectl get svc smokestack-api-service -n smokestack
-kubectl get endpoints smokestack-api-service -n smokestack
+kubectl get svc smokestack-api-metrics -n smokestack
+kubectl get endpoints smokestack-api-metrics -n smokestack
 ```
 
 Check Prometheus logs:

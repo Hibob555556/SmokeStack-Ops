@@ -29,6 +29,9 @@ spec:
               mountPath: /etc/prometheus
             - name: prometheus-storage
               mountPath: /prometheus
+            - name: prometheus-alert-rules
+              mountPath: /etc/prometheus/rules
+              readOnly: true
           resources:
             requests:
               cpu: "100m"
@@ -42,3 +45,6 @@ spec:
             name: prometheus-config
         - name: prometheus-storage
           emptyDir: {}
+        - name: prometheus-alert-rules
+          configMap:
+            name: smokestack-alert-rules
