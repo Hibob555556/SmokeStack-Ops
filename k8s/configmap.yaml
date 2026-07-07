@@ -1,0 +1,10 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smokestack-config
+  namespace: smokestack
+data:
+  APP_NAME: "SmokeStack Ops"
+  APP_ENV: "local-kubernetes"
+  LOG_LEVEL: "INFO"
